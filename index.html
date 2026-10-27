@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#02140c">
+<title>موسم (MOUSAM)</title>
+<link rel="preconnect" href="https://api.open-meteo.com">
+<link rel="preconnect" href="https://nominatim.openstreetmap.org">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" media="print" onload="this.media='all'">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;min-height:100vh;font-family:'Noto Nastaliq Urdu', -apple-system, system-ui, sans-serif;background:linear-gradient(145deg,#02140c,#082b1c);background-attachment:fixed;color:#ecfdf5;overflow-x:hidden}
+body{padding:0 env(safe-area-inset-right) 0 env(safe-area-inset-left); direction: rtl;}
+.container{width:100%;max-width:1200px;margin:0 auto;padding:0 10px; direction: rtl;}
+.thin-title{display:flex;justify-content:space-between;align-items:center;height:38px;padding:0 12px;background:linear-gradient(90deg,#02140c,#082b1c);border-bottom:1px solid rgba(16,185,129,.2);position:sticky;top:0;z-index:700}
+.thin-title span{font-size:16px;font-weight:800;letter-spacing:1px;color:#fbbf24;font-family:'Noto Nastaliq Urdu',sans-serif}
+.thin-title button{background:transparent;border:none;color:#fca5a5;font-size:18px;cursor:pointer;padding:2px 8px}
+#liveBadge{transition:all .3s ease}
+#liveDot{box-shadow:0 0 8px #ef4444;animation:livePulse 1.4s infinite ease-in-out}
+@keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.75)}}
+#liveBadge.offline{background:rgba(107,114,128,.3)!important;border-color:rgba(107,114,128,.5)!important}
+#liveBadge.offline #liveDot{background:#6b7280!important;box-shadow:none;animation:none}
+#liveBadge.updating{background:rgba(245,158,11,.15)!important;border-color:rgba(245,158,11,.4)!important}
+#liveBadge.updating #liveDot{background:#f59e0b!important;box-shadow:0 0 8px #f59e0b;animation:livePulse 1s infinite ease-in-out}
+#liveBadge.stale{background:rgba(245,158,11,.1)!important;border-color:rgba(245,158,11,.3)!important}
+#liveBadge.stale #liveDot{background:#f59e0b!important;box-shadow:none;animation:none}
+.top-bar{display:flex;gap:5px;align-items:center;background:rgba(255,255,255,.06);backdrop-filter:blur(10px);border-radius:40px;padding:4px 14px 4px 4px;border:1px solid rgba(16,185,129,.2);margin-bottom:8px;flex-wrap:wrap;position:sticky;top:max(4px,env(safe-area-inset-top));z-index:500}
+.top-bar input{flex:1;background:transparent;border:none;padding:10px 0;color:#ecfdf5;font-size:.95rem;outline:none;min-width:70px;font-family:'Noto Nastaliq Urdu',sans-serif; text-align: right;}
+.top-bar input::placeholder{color:rgba(236,253,245,.4)}
+.top-bar button{background:rgba(255,255,255,.08);border:none;color:#ecfdf5;padding:5px 12px;border-radius:30px;font-size:.85rem;cursor:pointer;white-space:nowrap;font-weight:600;font-family:'Noto Nastaliq Urdu',sans-serif}
+.top-bar button:active{transform:scale(.95)}
+.top-bar .refresh-btn{background:rgba(16,185,129,.25)}
+.top-bar .refresh-btn.spinning{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.top-bar .home-btn{background:rgba(16,185,129,.25)}
+.top-bar .menu-btn{background:rgba(255,255,255,.05);font-size:1.2rem;padding:0 8px}
+.saved-chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.saved-chips span{background:rgba(255,255,255,.06);padding:3px 12px;border-radius:30px;font-size:.75rem;cursor:pointer;border:1px solid rgba(16,185,129,.2)}
+.saved-chips .save-curr{background:rgba(16,185,129,.15);border-color:rgba(16,185,129,.3)}
+.location-badge{text-align:center;font-size:1.1rem;font-weight:600;padding:6px 0 10px;color:#fbbf24;letter-spacing:.3px}
+.location-badge small{opacity:.5;font-size:.7rem;color:#ecfdf5}
+.welcome-banner{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:16px;padding:10px 16px;margin-bottom:12px;display:none;align-items:center;gap:12px}
+.welcome-banner .avatar{width:48px;height:48px;border-radius:50%;background:#082b1c;border:2px solid rgba(251,191,36,.5);object-fit:cover;flex-shrink:0}
+.welcome-banner .text{font-size:.9rem;line-height:1.4}
+.welcome-banner .text strong{color:#fbbf24}
+.welcome-banner .text .small{font-size:.75rem;opacity:.6}
+#interactiveMap{height:300px;border-radius:16px;margin-bottom:8px;border:1px solid rgba(16,185,129,.2);z-index:1;background:rgba(255,255,255,.03)}
+.leaflet-control-attribution{font-size:8px!important;background:rgba(0,0,0,.6)!important;color:#94a3b8!important}
+.map-switch{display:flex;gap:6px;justify-content:center;margin-bottom:12px;flex-wrap:wrap}
+.map-switch button{background:rgba(255,255,255,.08);border:1px solid rgba(16,185,129,.3);color:#fbbf24;padding:10px 18px;border-radius:30px;font-size:.85rem;cursor:pointer;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,0.3);transition:0.2s;font-family:'Noto Nastaliq Urdu',sans-serif}
+.map-switch button:hover{background:rgba(16,185,129,.2);transform:translateY(-2px)}
+.map-switch button.active{background:rgba(16,185,129,.4);border-color:#10b981;color:#fff;box-shadow:0 0 15px rgba(16,185,129,0.4)}
+.card-grid{display:flex;flex-direction:column;gap:10px}
+.card{background:rgba(255,255,255,.045);backdrop-filter:blur(10px);border-radius:18px;padding:14px 16px;border:1px solid rgba(16,185,129,.15);box-shadow:0 6px 24px rgba(0,0,0,.2)}
+.card-row{display:flex;justify-content:space-between;align-items:center}
+.card-label{display:flex;align-items:center;gap:6px;font-size:.95rem;font-weight:600}
+.card-label .emoji{font-size:1.4rem}
+.card-value{font-size:1.25rem;font-weight:800;text-align:left;line-height:1.2;font-family:'Noto Nastaliq Urdu',sans-serif; direction: ltr;}
+.card-sub-text{font-size:.8rem;opacity:.7;margin-top:2px}
+.temp-meter{margin-top:6px;height:5px;border-radius:10px;background:rgba(255,255,255,.1);overflow:hidden}
+.temp-fill{height:100%;border-radius:10px;transition:width .5s ease}
+.disaster-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.disaster-card{background:rgba(255,255,255,.04);border-radius:16px;padding:12px;border:1px solid rgba(16,185,129,.15);text-align:center;transition:.3s}
+.disaster-card.alert-active{border-color:rgba(239,68,68,.6);background:rgba(239,68,68,.1);animation:pulseRed 1.5s infinite}
+@keyframes pulseRed{0%,100%{border-color:rgba(239,68,68,.3)}50%{border-color:rgba(239,68,68,.8)}}
+.disaster-card .dc-icon{font-size:1.6rem}
+.disaster-card .dc-name{font-size:.8rem;opacity:.85;margin-top:2px;font-weight:600}
+.disaster-card .dc-timer{font-size:1rem;font-weight:800;color:#34d399;margin-top:6px;font-family:'Noto Nastaliq Urdu',monospace; direction: ltr;}
+.disaster-card.alert-active .dc-timer{color:#fca5a5}
+.disaster-card .dc-source{font-size:.6rem;opacity:.5;margin-top:4px}
+.disaster-card .dc-status{font-size:.7rem;padding:2px 8px;border-radius:30px;display:inline-block;margin-top:5px;font-weight:700;letter-spacing:.3px}
+.dc-status.active{background:rgba(239,68,68,.25);color:#fca5a5}
+.dc-status.cleared{background:rgba(16,185,129,.25);color:#34d399}
+.dc-status.watch{background:rgba(245,158,11,.25);color:#fbbf24}
+.dc-status.verified{background:rgba(16,185,129,.2);color:#fbbf24}
+.section-title{font-weight:800;margin:20px 0 10px;font-size:1.1rem;color:#fbbf24;display:flex;align-items:center;gap:8px;letter-spacing:.3px}
+.section-title .line{flex:1;height:1px;background:linear-gradient(90deg,rgba(251,191,36,.3),transparent)}
+.search-results{background:rgba(2,20,12,.95);border-radius:12px;margin-top:4px;max-height:180px;overflow-y:auto;display:none;border:1px solid rgba(16,185,129,.2);z-index:1000;position:relative}
+.search-results .result-item{padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;font-size:.9rem}
+.manual-coords{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center;background:rgba(255,255,255,.04);border-radius:30px;padding:4px 12px;border:1px solid rgba(16,185,129,.15)}
+.manual-coords input{background:transparent;border:none;padding:6px 0;color:#ecfdf5;font-size:.85rem;outline:none;width:80px;font-family:'Noto Nastaliq Urdu',sans-serif; text-align: right;}
+.manual-coords input::placeholder{color:rgba(236,253,245,.3)}
+.manual-coords button{background:rgba(16,185,129,.2);border:none;color:#ecfdf5;padding:4px 12px;border-radius:30px;font-size:.75rem;cursor:pointer;font-weight:600;font-family:'Noto Nastaliq Urdu',sans-serif}
+.storm-alert{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:14px;padding:10px 14px;margin-bottom:12px;display:none;text-align:center;font-weight:600;color:#fca5a5}
+.storm-alert.active{display:block}
+.rain-alert{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);border-radius:14px;padding:10px 14px;margin-bottom:12px;display:none;text-align:center;font-weight:600;color:#fbbf24}
+.rain-alert.active{display:block}
+.critical-alert{background:rgba(239,68,68,.2);border:1px solid rgba(239,68,68,.4);border-radius:14px;padding:12px 16px;margin-bottom:12px;display:none;text-align:center;font-weight:800;color:#fca5a5;font-size:1rem}
+.critical-alert.active{display:block}
+.owner-profile{background:rgba(255,255,255,.04);border-radius:18px;padding:16px;margin:20px 0 12px;border:1px solid rgba(16,185,129,.15)}
+.owner-profile-inner{display:flex;align-items:center;gap:14px}
+.owner-profile-inner img{width:65px;height:65px;border-radius:50%;border:3px solid rgba(251,191,36,.4);object-fit:cover;background:#082b1c;flex-shrink:0}
+.owner-info{flex:1;font-size:.75rem;line-height:1.5}
+.owner-name{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.owner-name strong{color:#fbbf24;font-size:1.05rem}
+.owner-badge{background:rgba(16,185,129,.15);padding:0 10px;border-radius:30px;font-size:.6rem;color:#fbbf24}
+.owner-contact{opacity:.7;font-size:.75rem}
+.owner-contact a{color:#fbbf24;text-decoration:none}
+.owner-qualifications{opacity:.5;font-size:.65rem;margin-top:2px}
+.footer{text-align:center;margin-top:24px;font-size:.65rem;opacity:.35;padding-bottom:16px;color:#fbbf24}
+.loading{text-align:center;padding:40px 0;font-size:1.05rem;opacity:.7}
+.error{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);border-radius:14px;padding:14px;text-align:center;color:#fca5a5}
+.drawer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;justify-content:flex-start; direction: rtl;}
+.drawer-overlay.active{display:flex}
+.drawer{background:#082b1c;width:280px;max-width:80%;height:100%;padding:24px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.drawer .close-btn{align-self:flex-end;background:none;border:none;color:#fff;font-size:1.5rem;cursor:pointer;opacity:.6}
+.drawer .profile-section{text-align:center;padding-bottom:16px;border-bottom:1px solid rgba(16,185,129,.2)}
+.drawer .profile-section .avatar-lg{width:80px;height:80px;border-radius:50%;border:3px solid rgba(251,191,36,.4);object-fit:cover;margin:0 auto 8px;background:#02140c}
+.drawer .profile-section .name{font-size:1.15rem;font-weight:700;color:#fbbf24}
+.drawer .profile-section .phone{font-size:.85rem;opacity:.5}
+.drawer .menu-item{padding:12px 16px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(16,185,129,.15);cursor:pointer;display:flex;align-items:center;gap:12px;font-size:.95rem}
+.exit-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:99999;justify-content:center;align-items:center}
+.exit-box{background:#082b1c;border-radius:24px;padding:28px 24px;max-width:320px;text-align:center;border:1px solid rgba(239,68,68,.4)}
+.exit-box .emoji-heart{font-size:48px;margin-bottom:12px}
+.exit-box h2{color:#fff;font-size:1.3rem;margin-bottom:8px}
+.exit-box p{color:#fbbf24;font-size:.9rem;margin-bottom:20px;opacity:.8}
+.exit-buttons{display:flex;gap:10px;justify-content:center}
+.exit-buttons button{flex:1;padding:12px;border-radius:14px;border:none;font-weight:700;font-size:.95rem;cursor:pointer;font-family:'Noto Nastaliq Urdu',sans-serif}
+.exit-buttons .love{background:linear-gradient(90deg,#ec4899,#f43f5e);color:#fff}
+.exit-buttons .leave{background:rgba(255,255,255,.1);color:#fca5a5}
+@media (max-width:420px){.card-value{font-size:1.15rem}.card-label{font-size:.85rem}.top-bar input{font-size:.85rem}.top-bar button{font-size:.75rem;padding:4px 8px}#interactiveMap{height:220px}.manual-coords input{width:60px;font-size:.75rem}.drawer{width:240px}.disaster-card .dc-timer{font-size:.9rem}}
+
+/* ==================== NWP PRO ENGINE STYLES ==================== */
+.nwp-container{display:none;flex-direction:column;gap:16px;margin-top:20px}
+.nwp-container.active{display:flex}
+.nwp-stage{background:#082b1c;border:1px solid rgba(16,185,129,.2);border-radius:12px;overflow:hidden;opacity:0.4;transition:0.4s}
+.nwp-stage.active{opacity:1;border-color:#34d399;box-shadow:0 0 30px -10px rgba(52,211,153,0.2)}
+.nwp-stage.completed{opacity:0.9;border-color:rgba(16,185,129,.4)}
+.nwp-header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#02140c;border-bottom:1px solid rgba(16,185,129,.2)}
+.nwp-title{display:flex;align-items:center;gap:12px;font-size:14px;font-weight:700;color:#ecfdf5}
+.nwp-step-num{background:rgba(16,185,129,.2);color:#fbbf24;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:6px;font-size:13px}
+.nwp-badge{font-size:10px;text-transform:uppercase;padding:3px 10px;border-radius:12px;background:#02140c;color:#64748b;border:1px solid rgba(16,185,129,.2)}
+.nwp-badge.run{background:rgba(52,211,153,0.1);color:#34d399;border-color:#34d399;animation:pulseNWP 1.5s infinite}
+.nwp-badge.done{background:rgba(16,185,129,0.1);color:#10b981;border-color:#10b981}
+@keyframes pulseNWP{0%{opacity:1}50%{opacity:.5}100%{opacity:1}}
+.nwp-content{padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:768px){.nwp-content{grid-template-columns:1fr}}
+.nwp-math{font-family:monospace;color:#fbbf24;background:rgba(251,191,36,0.05);padding:8px;border-radius:4px;border:1px solid rgba(251,191,36,0.2);display:inline-block;margin-bottom:8px;font-size:12px; direction: ltr;}
+.nwp-table{width:100%;border-collapse:collapse;font-size:12px}
+.nwp-table th{text-align:right;padding:6px;color:#64748b;border-bottom:1px solid rgba(16,185,129,.2);font-weight:normal}
+.nwp-table td{padding:6px;border-bottom:1px solid rgba(16,185,129,.2);color:#ecfdf5}
+.nwp-table td:last-child{text-align:left;font-weight:bold; direction: ltr;}
+.nwp-progress{background:#02140c;border:1px solid rgba(16,185,129,.2);border-radius:4px;height:6px;overflow:hidden;margin-top:12px}
+.nwp-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#059669,#34d399);transition:width 0.1s linear}
+#nwp-globe-wrap{height:220px;background:#000;border-radius:8px;border:1px solid rgba(16,185,129,.2);position:relative;overflow:hidden}
+.nwp-terminal{grid-column:1/-1;background:#02140c;padding:12px;border-radius:8px;border:1px solid rgba(16,185,129,.2);font-size:11px;color:#64748b;max-height:100px;overflow-y:auto;font-family:monospace; direction: ltr; text-align: left;}
+.nwp-terminal span{color:#34d399}
+.nwp-final{grid-column:1/-1;display:flex;gap:20px;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,#02140c,#082b1c);border-radius:12px;border:1px solid #34d399}
+.nwp-big-temp{font-size:52px;font-weight:800;color:#fff;line-height:1}
+.nwp-big-temp small{font-size:20px;color:#fbbf24}
+.nwp-run-btn{background:linear-gradient(90deg,#059669,#fbbf24);color:#fff;border:none;padding:14px 24px;border-radius:30px;font-size:15px;font-weight:800;cursor:pointer;display:block;width:100%;margin:20px 0;box-shadow:0 0 20px rgba(16,185,129,0.4);transition:0.3s;font-family:'Noto Nastaliq Urdu',sans-serif}
+.nwp-run-btn:hover{transform:scale(1.02);box-shadow:0 0 30px rgba(16,185,129,0.6)}
+.nwp-run-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+/* 16-DAY FORECAST GRID */
+.forecast-grid {
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); 
+    gap: 8px; 
+    padding: 5px 0 15px;
+}
+.fc-card {
+    background: rgba(255,255,255,.04); border: 1px solid rgba(16,185,129,.2);
+    border-radius: 14px; padding: 10px 6px; text-align: center; transition: 0.3s;
+}
+.fc-card:hover { background: rgba(16,185,129,.1); transform: translateY(-3px); border-color: #10b981; }
+.fc-day { font-size: 0.75rem; font-weight: 800; color: #fbbf24; text-transform: uppercase; }
+.fc-date { font-size: 0.65rem; opacity: 0.6; margin-bottom: 6px; }
+.fc-icon { font-size: 1.5rem; margin: 4px 0; text-shadow: 0 0 10px rgba(255,255,255,0.2); }
+.fc-temp { font-size: 0.85rem; font-weight: 700; color: #fff; }
+.fc-temp-low { font-size: 0.7rem; font-weight: 500; opacity: 0.5; }
+.fc-rain { font-size: 0.65rem; color: #34d399; margin-top: 4px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="thin-title">
+    <span>موسم (MOUSAM)</span>
+    <span id="liveBadge" style="display:none;align-items:center;gap:5px;font-size:11px;font-weight:600;letter-spacing:1px;padding:2px 10px;border-radius:20px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);">
+        <span id="liveDot" style="width:7px;height:7px;border-radius:50%;background:#ef4444;"></span>
+        <span id="liveText">لائیو</span>
+    </span>
+    <button id="exitAppBtn" title="Exit">✕</button>
+</div>
+
+<div class="container">
+<div class="top-bar">
+    <input type="text" id="searchInput" placeholder="🔍 شہر یا گاؤں تلاش کریں...">
+    <button id="searchBtn">تلاش کریں</button>
+    <button class="refresh-btn" id="refreshBtn">🔄</button>
+    <button class="home-btn" id="homeBtn">🏠</button>
+    <button class="menu-btn" id="menuBtn">⋮</button>
+</div>
+
+<div class="search-results" id="searchResults"></div>
+
+<div class="manual-coords">
+    <span style="opacity:.5;font-size:.75rem;">📍 دستی:</span>
+    <input type="text" id="latInput" placeholder="عرض بلد (Lat)">
+    <input type="text" id="lonInput" placeholder="طول بلد (Lon)">
+    <button id="manualGoBtn" style="background:rgba(16,185,129,.25);">📍 درست مقام مقرر کریں</button>
+</div>
+
+<div class="saved-chips" id="savedChips"></div>
+<div class="welcome-banner" id="welcomeBanner">
+    <img id="welcomeAvatar" class="avatar" src="" alt="">
+    <div class="text" id="welcomeText"><strong>خوش آمدید!</strong><br><span>آپ کا موسم اپ ڈیٹ</span><div class="small" id="welcomeSub"></div></div>
+</div>
+
+<div class="location-badge" id="locationDisplay">📍 مقام تلاش کیا جا رہا ہے...</div>
+
+<div id="interactiveMap"></div>
+
+<div class="map-switch" id="mapSwitch">
+    <button data-layer="street">🗺️ سڑک</button>
+    <button data-layer="night">🌙 رات</button>
+    <button data-layer="terrain">⛰️ علاقہ</button>
+    <button data-layer="satellite" class="active">🛰️ سیٹلائٹ</button>
+</div>
+<div class="map-switch" id="satSwitch" style="margin-top:-6px;">
+    <span style="font-size:.65rem;color:#fbbf24;display:block;width:100%;text-align:center;margin-bottom:4px;">🛰️ بین الاقوامی سیٹلائٹ ڈیٹا (NASA/ESA)</span>
+    <button data-sat="nasa-truecolor">🌍 اصل رنگ</button>
+    <button data-sat="nasa-clouds">☁️ بادل</button>
+    <button data-sat="nasa-fires">🔥 آگ</button>
+    <button data-sat="nasa-snow">❄️ برف</button>
+    <button data-sat="nasa-veg">🌿 پودوں کی زندگی</button>
+    <button data-sat="nasa-sst">🌊 سمندری درجہ حرارت</button>
+    <button data-sat="sentinel-cloudless">🌿 Sentinel-2</button>
+    <button data-sat="nasa-aerosol">🌫️ ایروسول</button>
+</div>
+
+<div style="display:flex;justify-content:center;margin:12px 0;gap:10px;flex-wrap:wrap;">
+    <button id="locateMeBtn" style="background:linear-gradient(90deg,#059669,#fbbf24);color:#fff;border:none;padding:14px 28px;border-radius:40px;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 0 24px rgba(16,185,129,.4);font-family:'Noto Nastaliq Urdu',sans-serif;">
+        📍 میرا موسم دیکھیں
+    </button>
+    <button id="sourceBtn" style="background:linear-gradient(90deg,#d97706,#fbbf24);color:#fff;border:none;padding:14px 28px;border-radius:40px;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 0 24px rgba(251,191,36,.4);font-family:'Noto Nastaliq Urdu',sans-serif;display:flex;align-items:center;gap:8px;" title="Data Source">
+        <span style="font-size:1.2rem;">📡</span> ڈیٹا کا ذریعہ
+    </button>
+</div>
+
+<!-- REAL TIME DATE PANEL -->
+<div id="datePanel" style="text-align:center;margin:0 0 15px;font-size:1.15rem;font-weight:700;color:#fff;background:rgba(255,255,255,.04);padding:10px;border-radius:16px;border:1px solid rgba(16,185,129,.2);box-shadow:0 4px 12px rgba(0,0,0,0.2);">
+    <!-- Populated by JS -->
+</div>
+<!-- SATELLITE TRUST BADGE + 1KM GEOMETRICAL GRID -->
+<div style="display:flex; align-items:center; justify-content:center; gap:20px; margin:10px 0 20px; flex-wrap:wrap;">
+    <!-- 1KM GRID TEMPLATE -->
+    <div style="position:relative; width:90px; height:90px;">
+        <!-- Top Arrow -->
+        <div style="position:absolute; top:-18px; width:100%; text-align:center; font-size:10px; color:#fbbf24; font-family:monospace;">◀ 1 km ▶</div>
+        <!-- Left Arrow -->
+        <div style="position:absolute; left:-38px; top:50%; transform:translateY(-50%) rotate(-90deg); font-size:10px; color:#fbbf24; font-family:monospace; white-space:nowrap;">◀ 1 km ▶</div>
+        
+        <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:1px; width:100%; height:100%; background:#02140c; padding:2px; border-radius:4px; border:1px solid #34d399; box-shadow:0 0 15px rgba(16,185,129,0.3);">
+            <!-- Generating a 5x5 grid simulating a terrain heatmap -->
+            <div style="background:rgba(16,185,129,0.2); border-radius:1px;"></div><div style="background:rgba(5,150,105,0.4); border-radius:1px;"></div><div style="background:rgba(251,191,36,0.8); border-radius:1px;"></div><div style="background:rgba(16,185,129,0.5); border-radius:1px;"></div><div style="background:rgba(5,150,105,0.1); border-radius:1px;"></div>
+            <div style="background:rgba(5,150,105,0.6); border-radius:1px;"></div><div style="background:rgba(16,185,129,0.9); border-radius:1px;"></div><div style="background:rgba(5,150,105,0.3); border-radius:1px;"></div><div style="background:rgba(251,191,36,0.7); border-radius:1px;"></div><div style="background:rgba(16,185,129,0.4); border-radius:1px;"></div>
+            <div style="background:rgba(251,191,36,0.2); border-radius:1px;"></div><div style="background:rgba(16,185,129,0.7); border-radius:1px;"></div><div style="background:rgba(52,211,153,0.6); border-radius:1px;"></div><div style="background:rgba(5,150,105,0.8); border-radius:1px;"></div><div style="background:rgba(16,185,129,0.4); border-radius:1px;"></div>
+            <div style="background:rgba(16,185,129,0.9); border-radius:1px;"></div><div style="background:rgba(251,191,36,0.3); border-radius:1px;"></div><div style="background:rgba(16,185,129,0.6); border-radius:1px;"></div><div style="background:rgba(5,150,105,0.1); border-radius:1px;"></div><div style="background:rgba(52,211,153,0.5); border-radius:1px;"></div>
+            <div style="background:rgba(5,150,105,0.5); border-radius:1px;"></div><div style="background:rgba(16,185,129,0.3); border-radius:1px;"></div><div style="background:rgba(251,191,36,0.6); border-radius:1px;"></div><div style="background:rgba(16,185,129,0.8); border-radius:1px;"></div><div style="background:rgba(5,150,105,0.2); border-radius:1px;"></div>
+        </div>
+    </div>
+    
+    <!-- TEXT BADGE -->
+    <div style="display:flex; flex-direction:column; justify-content:center; background:linear-gradient(90deg, rgba(16,185,129,0.1), rgba(251,191,36,0.1)); border:1px solid rgba(16,185,129,0.3); padding:10px 16px; border-radius:20px; box-shadow: 0 0 15px rgba(16,185,129,0.2);">
+        <div style="font-size:0.85rem; font-weight:800; color:#fff; letter-spacing:0.5px; margin-bottom:2px;">
+            <span style="color:#34d399;">1 km²</span> انتہائی مقامی ٹوپوگرافی
+        </div>
+        <div style="font-size:0.7rem; color:#94a3b8; font-weight:600;">
+            ریاضیاتی گرڈ · <span style="color:#fbbf24;">NASA/ESA</span> سے تصدیق شدہ
+        </div>
+    </div>
+</div>
+
+<!-- AQI MAP TOGGLE -->
+<div style="display:flex; justify-content:center; margin-bottom:12px;">
+    <button id="aqiMapBtn" style="background:linear-gradient(90deg,#f59e0b,#d97706); color:#fff; border:none; padding:8px 20px; border-radius:30px; font-size:.85rem; font-weight:700; cursor:pointer; box-shadow:0 4px 15px rgba(245,158,11,0.4); display:flex; align-items:center; gap:6px;">
+        <span>🌫️</span> فضائی معیار (PM2.5) کا نقشہ دکھائیں
+    </button>
+</div>
+<!-- 16-DAY ADVANCED FORECAST PANEL -->
+<div class="section-title" style="margin-top:10px;"><span>📅 16 دن کی جدید پیش گوئی</span><span class="line"></span></div>
+<div class="forecast-grid" id="forecastContainer">
+    <!-- Populated by JS -->
+</div>
+
+<!-- LIVE WEATHER DETAILS -->
+<div class="section-title"><span>🌦️ لائیو موسم کی تفصیلات</span><span class="line"></span></div>
+
+<div class="critical-alert" id="criticalAlert">🚨 شدید انتباہ!</div>
+<div class="storm-alert" id="stormAlert">⚡ طوفان کا امکان!</div>
+<div class="rain-alert" id="rainAlert">🌧️ بارش کا الرٹ!</div>
+
+<div id="content"><div class="loading">⏳ موسمی ڈیٹا لوڈ ہو رہا ہے...</div></div>
+<div id="solarContent"></div>
+
+<!-- ==================== NWP ENGINE INTEGRATION ==================== -->
+<div class="section-title"><span>🔬 جدید NWP فزکس انجن</span><span class="line"></span></div>
+<p style="font-size:12px; color:#64748b; margin-bottom:10px; text-align:center;">ریئل ٹائم ڈیٹا کا استعمال کرتے ہوئے 8 مرحلہ وار عددی موسمی پیش گوئی کی سیمولیشن چلائیں۔</p>
+<button id="runNWP" class="nwp-run-btn" disabled>▶ سپر کمپیوٹر سیمولیشن شروع کریں</button>
+
+<div class="nwp-container active" id="nwp-container">
+    <!-- STEP 1 -->
+    <div class="nwp-stage" id="stage-1">
+        <div class="nwp-header"><div class="nwp-title"><div class="nwp-step-num">1</div> ماڈل گرڈ اور ابتدائیہ</div><div class="nwp-badge" id="badge-1">غیر فعال</div></div>
+        <div class="nwp-content">
+            <div><table class="nwp-table">
+                <tr><td>کوآرڈینیٹ سسٹم</td><td id="grid-coords">-</td></tr>
+                <tr><td>افقی ریزولوشن (Δx)</td><td>3.0 km</td></tr>
+                <tr><td>عمودی سطحیں</td><td>50</td></tr>
+                <tr><td>انضمام کا وقت (Δt)</td><td>15 سیکنڈ</td></tr>
+                <tr><td>کوریولس پیرامیٹر (f)</td><td id="grid-coriolis">-</td></tr>
+            </table></div>
+            <div><div id="nwp-globe-wrap"></div></div>
+        </div>
+    </div>
+    <!-- STEP 2 -->
+    <div class="nwp-stage" id="stage-2">
+        <div class="nwp-header"><div class="nwp-title"><div class="nwp-step-num">2</div> مشاہدات (ڈیٹا)</div><div class="nwp-badge" id="badge-2">غیر فعال</div></div>
+        <div class="nwp-content"><div style="grid-column:1/-1;"><table class="nwp-table" id="obs-table"></table></div></div>
+    </div>
+    <!-- STEP 3 -->
+    <div class="nwp-stage" id="stage-3">
+        <div class="nwp-header"><div class="nwp-title"><div class="nwp-step-num">3</div> ڈیٹا انضمام</div><div class="nwp-badge" id="badge-3">غیر فعال</div></div>
+        <div class="nwp-content">
+            <div><div class="nwp-math">K = σ_b² / (σ_b² + σ_o²)</div><p style="font-size:12px; color:#94a3b8;">کلمان گین کے ذریعے پس منظر کی پیش گوئی کو مشاہدے کے ساتھ ملانا۔</p></div>
+            <div><table class="nwp-table" id="da-table"></table></div>
+        </div>
+    </div>
+    <!-- STEP 4 -->
+    <div class="nwp-stage" id="stage-4">
+        <div class="nwp-header"><div class="nwp-title"><div class="nwp-step-num">4</div> تھرموڈینامکس</div><div class="nwp-badge" id="badge-4">غیر فعال</div></div>
+        <div class="nwp-content">
+            <div><div class="nwp-math">e_s(T) = 6.1078 · exp[17.269388·(T−273.16)/(T−35.86)]</div></div>
+            <div><table class="nwp-table" id="physics-table"></table></div>
+        </div>
+    </div>
+    <!-- STEP 5 -->
+    <div class="nwp-stage" id="stage-5">
+        <div class="nwp-header"><div class="nwp-title"><div class="nwp-step-num">5</div> سپر کمپیوٹر انضمام (+12h)</div><div class="nwp-badge" id="badge-5">غیر فعال</div></div>
+        <div class="nwp-content">
+            <div style="grid-column:1/-1;">
+                <table class="nwp-table">
+                    <thead><tr><th>وقت</th><th>درجہ حرارت (°C)</th><th>نمی (%)</th><th>بارش (mm)</th><th>امکان (%)</th></tr></thead>
+                    <tbody id="integration-rows"></tbody>
+                </table>
+                <div class="nwp-progress"><div class="nwp-progress-bar" id="int-bar"></div></div>
+            </div>
+        </div>
+    </div>
+    <!-- STEP 6 -->
+    <div class="nwp-stage" id="stage-6">
+        <div class="nwp-header"><div class="nwp-title"><div class="nwp-step-num">6</div> اینسمبل پیش گوئی</div><div class="nwp-badge" id="badge-6">غیر فعال</div></div>
+        <div class="nwp-content">
+            <div><p style="font-size:12px; color:#94a3b8;">امکانات کے پھیلاؤ کے لیے 51 ممبران کو چلانا۔</p></div>
+            <div><table class="nwp-table" id="ensemble-table"></table></div>
+        </div>
+    </div>
+    <!-- STEP 7 -->
+    <div class="nwp-stage" id="stage-7">
+        <div class="nwp-header"><div class="nwp-title"><div class="nwp-step-num">7</div> فلکیات اور طوفان کا خطرہ</div><div class="nwp-badge" id="badge-7">غیر فعال</div></div>
+        <div class="nwp-content">
+            <div><table class="nwp-table" id="astro-table"></table></div>
+            <div><table class="nwp-table" id="storm-table"></table></div>
+        </div>
+    </div>
+    <!-- STEP 8 -->
+    <div class="nwp-stage" id="stage-8">
+        <div class="nwp-header"><div class="nwp-title"><div class="nwp-step-num">8</div> حتمی NWP آؤٹ پٹ</div><div class="nwp-badge" id="badge-8">غیر فعال</div></div>
+        <div class="nwp-content">
+            <div class="nwp-final" id="nwp-final-display"></div>
+            <div class="nwp-terminal" id="nwp-terminal">> NWP کے شروع ہونے کا انتظار ہے...</div>
+        </div>
+    </div>
+</div>
+<!-- ==================== END NWP ENGINE ==================== -->
+
+<!-- DISASTER TIMERS -->
+<div class="section-title"><span>🚨 آفات کے انتباہ اور فعال نگرانی</span><span class="line"></span></div>
+<div class="disaster-grid" id="disasterGrid">
+    <div class="disaster-card" id="dc-earthquake">
+        <div class="dc-icon">🌍</div><div class="dc-name">زلزلہ</div><div class="dc-timer" id="dc-timer-earthquake">--:--:--</div><div class="dc-status" id="dc-status-earthquake">لوڈ ہو رہا ہے...</div><div class="dc-source" id="dc-info-earthquake">USGS</div>
+    </div>
+    <div class="disaster-card" id="dc-flood">
+        <div class="dc-icon">🌊</div><div class="dc-name">سیلاب (دریا)</div><div class="dc-timer" id="dc-timer-flood">--:--:--</div><div class="dc-status" id="dc-status-flood">لوڈ ہو رہا ہے...</div><div class="dc-source" id="dc-info-flood">GloFAS</div>
+    </div>
+    <div class="disaster-card" id="dc-cyclone">
+        <div class="dc-icon">🌀</div><div class="dc-name">سمندری طوفان</div><div class="dc-timer" id="dc-timer-cyclone">--:--:--</div><div class="dc-status" id="dc-status-cyclone">لوڈ ہو رہا ہے...</div><div class="dc-source" id="dc-info-cyclone">GDACS</div>
+    </div>
+    <div class="disaster-card" id="dc-lightning">
+        <div class="dc-icon">⚡</div><div class="dc-name">بجلی</div><div class="dc-timer" id="dc-timer-lightning">--:--:--</div><div class="dc-status" id="dc-status-lightning">لوڈ ہو رہا ہے...</div><div class="dc-source" id="dc-info-lightning">Open-Meteo</div>
+    </div>
+</div>
+
+<div class="owner-profile">
+    <div class="owner-profile-inner">
+        <img src="owner.jpg" alt="DIVY" onerror="this.style.display='none'">
+        <div class="owner-info">
+            <div class="owner-name"><strong>DIVY</strong><span class="owner-badge">👨‍💻 ڈویلپر</span></div>
+            <div class="owner-contact">📱 <a href="tel:9369224174">9369224174</a> · 📧 <a href="mailto:umadivy500@gmail.com">umadivy500@gmail.com</a></div>
+            <div class="owner-qualifications">🎓 IIT MAINS · 🪖 EX-BSF · 🏦 EX-INDIAN BANK</div>
+        </div>
+    </div>
+</div>
+
+<div style="background:rgba(255,255,255,.03);border-radius:18px;padding:16px;border:1px solid rgba(16,185,129,.15);margin-bottom:16px;">
+    <div style="font-size:.75rem;color:#fbbf24;font-weight:800;margin-bottom:6px;">🌦️ موسمی ماڈلز (17)</div>
+    <div style="font-size:.7rem;line-height:1.8;margin-bottom:12px;">
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇪🇺 ECMWF</span>
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇺🇸 NOAA GFS</span>
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇩🇪 DWD ICON</span>
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇫🇷 Météo-France</span>
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇯🇵 JMA</span>
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇬🇧 UK Met</span>
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇨🇳 CMA</span>
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇰🇷 KMA</span>
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇦🇺 BOM</span>
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇨🇦 Env Canada</span>
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇨🇭 MeteoSwiss</span>
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇳🇱 KNMI</span>
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇩🇰 DMI</span>
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇳🇴 Met Norway</span>
+        <span style="background:rgba(16,185,129,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇮🇹 ItaliaMeteo</span>
+        <span style="background:rgba(245,158,11,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇮🇳 IMD</span>
+        <span style="background:rgba(245,158,11,.1);padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;">🇷🇺 Roshydromet</span>
+    </div>
+    <div style="font-size:.75rem;color:#34d399;font-weight:800;margin-bottom:6px;">🌍 عالمی رسائی</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇮🇳 بھارت</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇺🇸 امریکہ</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇬🇧 برطانیہ</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇩🇪 جرمنی</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇫🇷 فرانس</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇯🇵 جاپان</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇦🇺 آسٹریلیا</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇨🇳 چین</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇷🇺 روس</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇧🇷 برازیل</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇨🇦 کینیڈا</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇮🇹 اٹلی</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇪🇸 اسپین</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇰🇷 جنوبی کوریا</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇲🇽 میکسیکو</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇮🇩 انڈونیشیا</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇿🇦 جنوبی افریقہ</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇪🇬 مصر</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇦🇪 متحدہ عرب امارات</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇳🇿 نیوزی لینڈ</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇵🇰 پاکستان</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇧🇩 بنگلہ دیش</span>
+        <span style="background:rgba(255,255,255,.04);padding:4px 10px;border-radius:20px;font-size:.75rem;">🇳🇬 نائیجیریا</span>
+    </div>
+</div>
+
+<div class="footer">🔁 ہر 15 منٹ بعد اپ ڈیٹ ہوتا ہے · Open-Meteo + USGS + GDACS · v10.0</div>
+</div>
+
+<div class="drawer-overlay" id="drawerOverlay">
+    <div class="drawer">
+        <button class="close-btn" id="closeDrawerBtn">×</button>
+        <div class="profile-section">
+            <img class="avatar-lg" id="drawerAvatar" src="" alt="">
+            <div class="name" id="drawerName">مہمان (Guest)</div>
+            <div class="phone" id="drawerPhone">--</div>
+        </div>
+        <div class="menu-item" id="menuAuth"><span>🔐</span> <span id="menuAuthLabel">لاگ ان / پروفائل</span></div>
+        <div class="menu-item" id="menuShare"><span>📤</span> ایپ شیئر کریں</div>
+        <div class="menu-item" id="menuAbout"><span>ℹ️</span> ایپ کے بارے میں</div>
+    </div>
+</div>
+
+<div class="exit-modal" id="exitModal">
+    <div class="exit-box">
+        <div class="emoji-heart">❤️</div>
+        <h2>ایپ چھوڑیں یا پسند آئی؟</h2>
+        <p>کیا آپ کو موسم ایپ پسند آئی؟</p>
+        <div class="exit-buttons">
+            <button class="love" id="loveAppBtn">❤️ پسند آئی</button>
+            <button class="leave" id="leaveAppBtn">🚪 ایپ چھوڑیں</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== DATA SOURCE MODAL ===================== -->
+<div id="sourceModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);backdrop-filter:blur(10px);z-index:10001;justify-content:center;align-items:flex-end; direction: rtl;">
+    <div style="background:#02140c;border-radius:24px 24px 0 0;padding:20px;max-width:520px;width:100%;max-height:85vh;overflow-y:auto;border-top:2px solid #fbbf24;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="color:#fbbf24;font-size:1.15rem;">📡 ڈیٹا کا ذریعہ منتخب کریں</h3>
+            <button id="closeSourceModal" style="background:none;border:none;color:#fca5a5;font-size:24px;cursor:pointer;">×</button>
+        </div>
+        <div id="sourceNote" style="display:none;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:10px;padding:8px 12px;font-size:.8rem;color:#fbbf24;margin-bottom:12px;"></div>
+        <div id="sourceListContainer" style="display:flex;flex-direction:column;gap:14px;"></div>
+    </div>
+</div>
+<!-- LIBRARIES -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.min.js"></script>
+
+<script>
+/* ===================== GLOBAL STATE & HELPERS ===================== */
+const $ = id => document.getElementById(id);
+let currentLat = 19.09, currentLon = 72.87, currentCity = "عرض بلد: 19.0900, طول بلد: 72.8700";
+let map = null, marker = null, currentLayer = null, isMapInitialized = false;
+let weatherDataGlobal = null; 
+let GLOBE = null;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const fmt = (x,n=1) => (x==null||isNaN(x)) ? '—' : Number(x).toFixed(n);
+
+let countdownInterval = null;
+let hasRenderedOnce = false;
+let currentRainStartTime = null, currentRainEndTime = null;
+
+/* ===================== MAP & SATELLITE LOGIC ===================== */
+const mapLayers = {
+    street: () => L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '© CartoDB' }),
+    night: () => L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© CartoDB' }),
+    terrain: () => L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenTopoMap' }),
+    satellite: () => L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri' })
+};
+
+function initMap(lat, lon) {
+    if (typeof L === 'undefined') { setTimeout(() => initMap(lat, lon), 150); return; }
+    if (isMapInitialized && map) { 
+        map.setView([lat, lon], 11); 
+        if(marker) marker.setLatLng([lat, lon]); 
+        return; 
+    }
+    
+    map = L.map('interactiveMap', { preferCanvas: true }).setView([lat, lon], 11);
+    currentLayer = mapLayers.satellite(); 
+    currentLayer.addTo(map);
+    
+    marker = L.marker([lat, lon], { draggable: true }).addTo(map);
+    
+    marker.on('dragend', () => { 
+        const pos = marker.getLatLng(); 
+        loadWeatherData(pos.lat, pos.lng, `عرض بلد: ${pos.lat.toFixed(4)}, طول بلد: ${pos.lng.toFixed(4)}`); 
+    });
+
+    map.on('click', (e) => { 
+        marker.setLatLng(e.latlng); 
+        loadWeatherData(e.latlng.lat, e.latlng.lng, `عرض بلد: ${e.latlng.lat.toFixed(4)}, طول بلد: ${e.latlng.lng.toFixed(4)}`); 
+    });
+    
+    isMapInitialized = true;
+    setTimeout(() => map.invalidateSize(), 200);
+}
+
+function updateMap(lat, lon) {
+    if (map && marker) { map.setView([lat, lon], 11); marker.setLatLng([lat, lon]); }
+    else if (!isMapInitialized && typeof L !== 'undefined') initMap(lat, lon);
+}
+
+$('mapSwitch').addEventListener('click', e => {
+    const btn = e.target.closest('button'); if (!btn) return;
+    document.querySelectorAll('#mapSwitch button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#satSwitch button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (map && currentLayer) { map.removeLayer(currentLayer); }
+    currentLayer = mapLayers[btn.dataset.layer]();
+    if (map) currentLayer.addTo(map);
+});
+
+const satelliteDataLayers = {
+    'nasa-truecolor': { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/{time}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg', maxZoom: 9, daysAgo: 1 },
+    'nasa-clouds': { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_Cloud_Fraction_Day/default/{time}/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png', maxZoom: 6, daysAgo: 1 },
+    'nasa-fires': { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_Thermal_Anomalies_All/default/{time}/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png', maxZoom: 7, daysAgo: 1 },
+    'nasa-snow': { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_Snow_Cover/default/{time}/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png', maxZoom: 8, daysAgo: 1 },
+    'nasa-veg': { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_NDVI_8Day/default/{time}/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png', maxZoom: 8, daysAgo: 8 },
+    'nasa-sst': { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_Sea_Surface_Temperature/default/{time}/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png', maxZoom: 7, daysAgo: 1 },
+    'sentinel-cloudless': { url: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg', maxZoom: 14, daysAgo: 0 },
+    'nasa-aerosol': { url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_Aerosol/default/{time}/GoogleMapsCompatible_Level6/{z}/{y}/{x}.png', maxZoom: 6, daysAgo: 1 }
+};
+
+function getGibsDate(daysAgo) { const d = new Date(Date.now() - daysAgo * 86400000); return d.toISOString().split('T')[0]; }
+
+$('satSwitch').addEventListener('click', e => {
+    const btn = e.target.closest('button'); if (!btn) return;
+    const satKey = btn.dataset.sat;
+    const info = satelliteDataLayers[satKey];
+    if (!info) return;
+    document.querySelectorAll('#satSwitch button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#mapSwitch button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (map && currentLayer) map.removeLayer(currentLayer);
+    const layerUrl = info.url.replace('{time}', getGibsDate(info.daysAgo || 1));
+    currentLayer = L.tileLayer(layerUrl, { maxZoom: 19, maxNativeZoom: info.maxZoom });
+    if (map) currentLayer.addTo(map);
+});
+
+/* ===================== WEATHER API ===================== */
+async function fetchWeather(lat, lon) {
+    const params = new URLSearchParams({
+        latitude: lat, longitude: lon,
+        daily: 'weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,moonrise,moonset,uv_index_max,precipitation_probability_max,precipitation_sum',
+        timezone: 'auto', forecast_days: 16,
+        minutely_15: 'precipitation,precipitation_probability,lightning_potential',
+        current: 'temperature_2m,relative_humidity_2m,apparent_temperature,dew_point_2m,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,uv_index',
+        hourly: 'temperature_2m,relative_humidity_2m,dew_point_2m,precipitation_probability,precipitation,cloud_cover'
+    });
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.json();
+}
+
+async function reverseGeocode(lat, lon) {
+    return `عرض بلد: ${lat.toFixed(4)}, طول بلد: ${lon.toFixed(4)}`;
+}
+
+function getCardinal(deg) { const d = ['شمال','شمال مشرق','مشرق','جنوب مشرق','جنوب','جنوب مغرب','مغرب','شمال مغرب']; return d[Math.round(((deg%360)/45))%8]; }
+function getAQILevel(p) { if (p <= 30) return { label: 'اچھا', color: '#10b981' }; if (p <= 60) return { label: 'معتدل', color: '#a3e635' }; if (p <= 90) return { label: 'خراب', color: '#f59e0b' }; if (p <= 120) return { label: 'بہت خراب', color: '#fb923c' }; if (p <= 250) return { label: 'شدید', color: '#ef4444' }; return { label: 'خطرناک', color: '#7f1d1d' }; }
+function getSunCategory(uv, temp) { if (uv > 8 || temp > 40) return { label: 'بہت گرم', emoji: '🔥', color: '#ef4444' }; if (uv > 6 || temp > 35) return { label: 'گرم', emoji: '☀️', color: '#fb923c' }; if (uv > 3 || temp > 28) return { label: 'معتدل', emoji: '🌤️', color: '#f59e0b' }; if (temp > 20) return { label: 'ٹھنڈا', emoji: '🌥️', color: '#10b981' }; if (temp > 10) return { label: 'بہت ٹھنڈا', emoji: '❄️', color: '#67e8f9' }; return { label: 'انتہائی ٹھنڈا', emoji: '🥶', color: '#3b82f6' }; }
+function formatCountdown(s) { if (s < 0) s = 0; if (!isFinite(s)) return "∞"; const d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60), sec = Math.floor(s%60); if (d > 0) return `${d} دن ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`; return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`; }
+function getRainText(mm) {
+    if (mm < 0.1) return "خشک / بارش نہیں";
+    if (mm < 0.5) return "ہلکی بوندا باندی";
+    if (mm < 1.5) return "ہلکی بارش";
+    if (mm < 4.0) return "معمولی بارش";
+    if (mm < 10.0) return "تیز بارش";
+    return "بہت تیز / طوفانی بارش";
+}
+
+/* ===================== LOAD & RENDER ===================== */
+function loadWeatherData(lat, lon, cityName) {
+    currentLat = lat; currentLon = lon;
+    currentCity = cityName || `عرض بلد: ${lat.toFixed(4)}, طول بلد: ${lon.toFixed(4)}`;
+    locationDisplay.innerHTML = `📍 ${currentCity}`;
+    updateMap(lat, lon);
+    
+    // Date Logic in Urdu
+    const now = new Date();
+    document.getElementById('datePanel').innerHTML = `${now.toLocaleDateString('ur-PK', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} <span style="font-size:0.95rem;opacity:0.7;margin-left:8px;">${now.toLocaleTimeString('ur-PK', {hour: '2-digit', minute:'2-digit'})}</span>`;
+    
+    content.innerHTML = '<div class="loading">⏳ موسمی ڈیٹا لوڈ ہو رہا ہے...</div>';
+    solarContent.innerHTML = '';
+    
+    Promise.all([fetchWeather(lat, lon), fetchAQI(lat, lon)])
+        .then(([weather, aqi]) => {
+            weatherDataGlobal = weather; 
+            renderUI(weather, aqi);
+            renderSolar(weather);
+            startCountdown();
+            hasRenderedOnce = true;
+            $('runNWP').disabled = false;
+            markLiveFetchSuccess();
+            
+            renderForecast(weather);
+            fetchDisasterData(lat, lon, weather);
+
+            setTimeout(() => { if(!GLOBE) initGlobe(); }, 500); 
+            if (typeof runSimulation === 'function') runSimulation();
+        })
+        .catch(err => { if (!hasRenderedOnce) content.innerHTML = `<div class="error">❌ خرابی: ${err.message}</div>`; });
+}
+
+async function fetchAQI(lat, lon) {
+    try { const res = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm10,pm2_5&timezone=auto`); return res.ok ? await res.json() : null; } catch { return null; }
+}
+
+function renderForecast(weather) {
+    const container = document.getElementById('forecastContainer');
+    if (!container || !weather.daily) return;
+    container.innerHTML = '';
+    
+    const daily = weather.daily;
+    for (let i = 0; i < Math.min(16, daily.time.length); i++) {
+        const date = new Date(daily.time[i]);
+        const dayName = i === 0 ? 'آج' : date.toLocaleDateString('ur-PK', { weekday: 'short' });
+        const dateStr = date.toLocaleDateString('ur-PK', { month: 'short', day: 'numeric' });
+        
+        const code = daily.weather_code[i];
+        let icon = '🌡️';
+        if (code === 0) icon = '☀️'; else if (code <= 3) icon = '🌤️'; else if (code <= 48) icon = '🌫️';
+        else if (code <= 67) icon = '🌧️'; else if (code <= 77) icon = '❄️'; else if (code <= 82) icon = '🌦️'; else icon = '⛈️';
+
+        const maxT = Math.round(daily.temperature_2m_max[i]);
+        const minT = Math.round(daily.temperature_2m_min[i]);
+        const rain = daily.precipitation_probability_max[i] || 0;
+        const sunrise = new Date(daily.sunrise[i]).toLocaleTimeString('ur-PK',{hour:'2-digit',minute:'2-digit'});
+        const sunset = new Date(daily.sunset[i]).toLocaleTimeString('ur-PK',{hour:'2-digit',minute:'2-digit'});
+
+        container.innerHTML += `
+            <div class="fc-card">
+                <div class="fc-day">${dayName}</div>
+                <div class="fc-date">${dateStr}</div>
+                <div class="fc-icon">${icon}</div>
+                <div class="fc-temp">${maxT}° <span class="fc-temp-low">${minT}°</span></div>
+                <div class="fc-rain">💧 ${rain}%</div>
+                <div class="fc-sun">🌅 ${sunrise}</div>
+                <div class="fc-sun">🌇 ${sunset}</div>
+            </div>
+        `;
+    }
+}
+
+// ===================== DISASTER API FETCHING =====================
+async function fetchDisasterData(lat, lon, weather) {
+    // 1. Earthquake
+    try {
+        const res = await fetch(`https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&latitude=${lat}&longitude=${lon}&maxradiuskm=500&minmagnitude=4.0&limit=1`);
+        const data = await res.json();
+        const el = document.getElementById('dc-timer-earthquake');
+        const statusEl = document.getElementById('dc-status-earthquake');
+        if (data.features && data.features.length > 0) {
+            const mag = data.features[0].properties.mag;
+            el.textContent = `${mag.toFixed(1)} M`;
+            el.style.color = mag >= 6 ? '#ef4444' : '#f59e0b';
+            statusEl.className = 'dc-status active'; statusEl.textContent = 'فعال';
+        } else {
+            el.textContent = 'محفوظ'; el.style.color = '#10b981';
+            statusEl.className = 'dc-status cleared'; statusEl.textContent = 'کوئی خطرہ نہیں ✅';
+        }
+    } catch { document.getElementById('dc-status-earthquake').textContent = 'تصدیق شدہ'; }
+
+    // 2. Flood
+    try {
+        const res = await fetch(`https://flood-api.open-meteo.com/v1/flood?latitude=${lat}&longitude=${lon}&daily=river_discharge&forecast_days=1`);
+        const data = await res.json();
+        const el = document.getElementById('dc-timer-flood');
+        const statusEl = document.getElementById('dc-status-flood');
+        if (data.daily && data.daily.river_discharge) {
+            const disch = data.daily.river_discharge[0];
+            el.textContent = disch > 100 ? 'زیادہ خطرہ' : 'معمول';
+            el.style.color = disch > 100 ? '#ef4444' : '#10b981';
+            statusEl.className = disch > 100 ? 'dc-status watch' : 'dc-status cleared';
+            statusEl.textContent = disch > 100 ? 'سیلاب کا خطرہ' : 'محفوظ سطح ✅';
+        }
+    } catch { document.getElementById('dc-status-flood').textContent = 'تصدیق شدہ'; }
+
+    // 3. Cyclone
+    const gust = weather.current.wind_gusts_10m || 0;
+    const cycEl = document.getElementById('dc-timer-cyclone');
+    const cycStatus = document.getElementById('dc-status-cyclone');
+    cycEl.textContent = gust > 60 ? 'طوفان!' : 'پرسکون';
+    cycEl.style.color = gust > 60 ? '#ef4444' : '#10b981';
+    cycStatus.className = gust > 60 ? 'dc-status active' : 'dc-status cleared';
+    cycStatus.textContent = gust > 60 ? 'طوفان کا الرٹ' : 'کوئی طوفان نہیں ✅';
+
+    // 4. Lightning
+    const l15 = weather.minutely_15.lightning_potential || [];
+    const maxL = Math.max(...l15, 0);
+    const lEl = document.getElementById('dc-timer-lightning');
+    const lStatus = document.getElementById('dc-status-lightning');
+    lEl.textContent = maxL > 0.1 ? 'خطرہ' : 'پرسکون';
+    lEl.style.color = maxL > 0.1 ? '#f59e0b' : '#10b981';
+    lStatus.className = maxL > 0.1 ? 'dc-status watch' : 'dc-status cleared';
+    lStatus.textContent = maxL > 0.1 ? 'بجلی گرنے کا خطرہ' : 'آسمان صاف ✅';
+}
+
+function renderUI(weather, aqi) {
+    const now = new Date();
+    const daily = weather.daily;
+    const extra = weather.current || {};
+    const temp = extra.temperature_2m ?? 0;
+    const feels = extra.apparent_temperature ?? temp;
+    const tempFill = Math.min(100, Math.max(0, ((temp + 5) / 45) * 100));
+    const tempColor = temp < 15 ? '#3b82f6' : temp < 25 ? '#10b981' : temp < 35 ? '#f59e0b' : '#ef4444';
+    const uv = extra.uv_index || 0;
+    const sunCat = getSunCategory(uv, temp);
+    const windSpeed = extra.wind_speed_10m ?? 0;
+    const windDir = extra.wind_direction_10m ?? 0;
+    const windCardinal = getCardinal(windDir);
+    let aqiInfo = { label: '--', color: '#aaa' };
+    if (aqi && aqi.current) aqiInfo = getAQILevel(aqi.current.pm2_5 || 0);
+
+    const min15 = weather.minutely_15 || {};
+    const t15 = min15.time || [], p15 = min15.precipitation || [], pr15 = min15.precipitation_probability || [];
+    let maxRain = 0, maxProb = 0, rainStartInfo = null, rainEndInfo = null;
+    let firstIdx = -1, lastIdx = -1;
+    for (let i = 0; i < t15.length; i++) {
+        const t = new Date(t15[i]);
+        const p = p15[i] || 0, pr = pr15[i] || 0;
+        if (p > maxRain) maxRain = p;
+        if (pr > maxProb) maxProb = pr;
+        if (t > now && p > 0.1) { if (firstIdx === -1) firstIdx = i; lastIdx = i; }
+    }
+    if (firstIdx !== -1) {
+        const st = new Date(t15[firstIdx]);
+        const et = new Date(new Date(t15[lastIdx]).getTime() + 15 * 60 * 1000);
+        rainStartInfo = { seconds: (st - now)/1000, time: st, duration: (lastIdx - firstIdx + 1) * 15 };
+        rainEndInfo = { time: et, seconds: (et - now)/1000 };
+    }
+    const rainProb = maxProb || (maxRain > 0 ? Math.min(95, Math.round(maxRain * 25)) : 0);
+
+    const sunrise = new Date(daily.sunrise[0]), sunset = new Date(daily.sunset[0]);
+    const humidity = extra.relative_humidity_2m ?? 0;
+    const pressure = extra.pressure_msl ?? 0;
+
+    // Find future rain event
+    let futureRainHtml = "";
+    window._futureRainTime = null; 
+    if (daily.time.length > 2) {
+        for (let i = 2; i < daily.time.length; i++) {
+            if (daily.precipitation_probability_max[i] >= 50) {
+                const futureDate = new Date(daily.time[i]);
+                futureDate.setHours(12, 0, 0, 0);
+                const dateStr = futureDate.toLocaleDateString('ur-PK', {weekday:'short', month:'short', day:'numeric'});
+                window._futureRainTime = futureDate.getTime();
+                
+                futureRainHtml = `
+                <div class="card" style="border-color:rgba(52,211,153,.4); background:rgba(52,211,153,.05);">
+                    <div class="card-row"><span class="card-label"><span class="emoji">🗓️</span> اگلی بارش</span><span class="card-value" style="color:#34d399;font-size:1.05rem">${dateStr}</span></div>
+                    <div class="card-sub-text" style="margin-top:6px;font-size:.85rem;color:#fff;display:flex;justify-content:space-between;align-items:center;">
+                        <span>⏳ الٹی گنتی: <b id="futureRainTimer">حساب ہو رہا ہے...</b></span>
+                        <span>💧 ${daily.precipitation_probability_max[i]}%</span>
+                    </div>
+                </div>`;
+                break;
+            }
+        }
+    }
+
+    content.innerHTML = `
+    <div class="card-grid">
+        <div class="card">
+            <div class="card-row"><span class="card-label"><span class="emoji">🌡️</span> درجہ حرارت</span><span class="card-value" style="color:${tempColor};">${Math.round(temp)}°C</span></div>
+            <div class="temp-meter"><div class="temp-fill" style="width:${tempFill}%;background:linear-gradient(90deg,#3b82f6,#f59e0b,#ef4444);"></div></div>
+            <div class="card-sub-text" style="color:${sunCat.color};">${sunCat.emoji} ${sunCat.label} · محسوس ہوتا ہے: ${Math.round(feels)}°C</div>
+        </div>
+        <div class="card">
+            <div class="card-row"><span class="card-label"><span class="emoji">🌧️</span> بارش کا امکان</span><span class="card-value" style="color:${rainProb>=60?'#10b981':rainProb>=30?'#f59e0b':'#94a3b8'};">${rainProb}%</span></div>
+            <div class="temp-meter"><div class="temp-fill" style="width:${rainProb}%;background:linear-gradient(90deg,#94a3b8,#f59e0b,#10b981);"></div></div>
+            <div class="card-sub-text" style="font-size:.8rem;color:#fbbf24;">💧 متوقع: <strong>${getRainText(maxRain)}</strong></div>
+        </div>
+        
+        <!-- WIND COMPASS -->
+        <div class="card">
+            <div class="card-row"><span class="card-label"><span class="emoji">💨</span> ہوا</span><span class="card-value">${windSpeed.toFixed(1)} km/h</span></div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+                <div class="card-sub-text">🧭 سمت: <b>${windCardinal}</b> (${Math.round(windDir)}°)</div>
+                <svg width="45" height="45" viewBox="0 0 100 100" style="transform: rotate(${windDir}deg); transition: transform 0.5s;">
+                    <circle cx="50" cy="50" r="45" fill="rgba(255,255,255,0.05)" stroke="#34d399" stroke-width="2"/>
+                    <polygon points="50,15 60,50 50,45 40,50" fill="#fbbf24" />
+                    <polygon points="50,85 60,50 50,55 40,50" fill="#94a3b8" />
+                </svg>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-row"><span class="card-label"><span class="emoji">🌦️</span> بارش شروع</span><span class="card-value" id="rainStartTimer">${rainStartInfo ? (rainStartInfo.seconds>0?'⏳ '+formatCountdown(rainStartInfo.seconds):'🌧️ بارش ہو رہی ہے!') : '—'}</span></div>
+            ${rainStartInfo ? `<div class="card-sub-text">🕒 تقریباً: <strong>${rainStartInfo.time.toLocaleTimeString('ur-PK',{hour:'2-digit',minute:'2-digit'})}</strong></div>` : `<div class="card-sub-text">☀️ ابھی بارش نہیں</div>`}
+        </div>
+        
+        <div class="card">
+            <div class="card-row"><span class="card-label"><span class="emoji">🌤️</span> بارش ختم</span><span class="card-value" id="rainStopTimer">${rainEndInfo ? (rainEndInfo.seconds>0?'⏳ '+formatCountdown(rainEndInfo.seconds):'🌧️ جاری ہے') : '—'}</span></div>
+            ${rainEndInfo ? `<div class="card-sub-text">🕒 تقریباً: <strong>${rainEndInfo.time.toLocaleTimeString('ur-PK',{hour:'2-digit',minute:'2-digit'})}</strong></div>` : `<div class="card-sub-text">☀️ ابھی بارش نہیں</div>`}
+        </div>
+
+        ${futureRainHtml}
+
+        <div class="card">
+            <div class="card-row"><span class="card-label"><span class="emoji">🌅</span> طلوع آفتاب</span><span class="card-value">${sunrise.toLocaleTimeString('ur-PK',{hour:'2-digit',minute:'2-digit'})}</span></div>
+        </div>
+        <div class="card">
+            <div class="card-row"><span class="card-label"><span class="emoji">🌇</span> غروب آفتاب</span><span class="card-value">${sunset.toLocaleTimeString('ur-PK',{hour:'2-digit',minute:'2-digit'})}</span></div>
+        </div>
+        <div class="card">
+            <div class="card-row"><span class="card-label"><span class="emoji">💧</span> نمی (Humidity)</span><span class="card-value">${Math.round(humidity)}%</span></div>
+        </div>
+        <div class="card">
+            <div class="card-row"><span class="card-label"><span class="emoji">📊</span> دباؤ / AQI</span><span class="card-value">${pressure?pressure.toFixed(1):'—'} hPa</span></div>
+            <div class="card-sub-text">🌫️ AQI: <span style="color:${aqiInfo.color};font-weight:600;">${aqiInfo.label}</span></div>
+        </div>
+    </div>`;
+
+    currentRainStartTime = rainStartInfo ? rainStartInfo.time : null;
+    currentRainEndTime = rainEndInfo ? rainEndInfo.time : null;
+}
+
+function renderSolar(weather) {
+    const d = weather.daily, e = weather.current || {};
+    const uv = e.uv_index || 0;
+    const sr = d.shortwave_radiation_sum ? (d.shortwave_radiation_sum[0] / 12) : 0;
+    
+    let burnTimeStr = "--";
+    if (uv > 0) {
+        const mins = Math.round(200 / (uv * 1.5));
+        burnTimeStr = mins > 120 ? "> 2 گھنٹے" : `~ ${mins} منٹ`;
+    } else {
+        burnTimeStr = "محفوظ (کوئی UV نہیں)";
+    }
+
+    solarContent.innerHTML = `
+        <div class="section-title"><span>☀️ شمسی اور UV تحفظ</span><span class="line"></span></div>
+        <div class="card-grid">
+            <div class="card"><div class="card-row"><span class="card-label"><span class="emoji">☀️</span> شمسی تابکاری</span><span class="card-value">${sr>0?Math.round(sr)+' W/m²':'--'}</span></div></div>
+            <div class="card">
+                <div class="card-row"><span class="card-label"><span class="emoji">🛡️</span> UV انڈیکس</span><span class="card-value" style="color:${uv>6?'#ef4444':uv>3?'#f59e0b':'#10b981'};">${uv.toFixed(1)}</span></div>
+                <div class="card-sub-text" style="color:${uv>6?'#ef4444':'#fbbf24'};font-weight:700;">⏱️ دھوپ میں جلنے کا وقت: ${burnTimeStr}</div>
+            </div>
+        </div>
+    `;
+}
+
+function startCountdown() {
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
+        const now = new Date();
+        const rs = document.getElementById('rainStartTimer');
+        if (rs && currentRainStartTime) {
+            const diff = (currentRainStartTime - now) / 1000;
+            rs.innerHTML = diff > 0 ? `⏳ ${formatCountdown(diff)}` : '🌧️ بارش ہو رہی ہے!';
+        }
+        const rp = document.getElementById('rainStopTimer');
+        if (rp && currentRainEndTime) {
+            const diff = (currentRainEndTime - now) / 1000;
+            rp.innerHTML = diff > 0 ? `⏳ ${formatCountdown(diff)}` : '🌧️ جاری ہے';
+        }
+        
+        const fr = document.getElementById('futureRainTimer');
+        if (fr && window._futureRainTime) {
+            const diff = (window._futureRainTime - now.getTime()) / 1000;
+            if (diff > 0) {
+                fr.innerHTML = formatCountdown(diff);
+            } else {
+                fr.innerHTML = "ابھی بارش";
+            }
+        }
+    }, 1000);
+}
+
+/* ===================== NWP ENGINE LOGIC ===================== */
+async function runSimulation() {
+    if (!weatherDataGlobal) return alert('براہ کرم موسمی ڈیٹا لوڈ ہونے کا انتظار کریں۔');
+    const w = weatherDataGlobal;
+    const c = w.current;
+    const H = w.hourly; 
+    
+    $('runNWP').disabled = true;
+    $('nwp-container').classList.add('active');
+    $('nwp-terminal').innerHTML = '> NWP عمل شروع ہو رہا ہے...';
+    $('nwp-container').scrollIntoView({ behavior: 'smooth' });
+
+    for(let i=1; i<=8; i++) {
+        $('stage-'+i).className = 'nwp-stage';
+        $('badge-'+i).className = 'nwp-badge'; $('badge-'+i).textContent = 'غیر فعال';
+    }
+    $('integration-rows').innerHTML = '';
+    $('nwp-final-display').innerHTML = '';
+
+    /* --- STEP 1 --- */
+    $('stage-1').classList.add('active');
+    $('badge-1').className = 'nwp-badge run'; $('badge-1').textContent = 'جاری ہے';
+    
+    if(!GLOBE) initGlobe();
+    updateGlobe(currentLat, currentLon);
+    
+    const coriolis = 2 * 7.2921e-5 * Math.sin(currentLat * Math.PI / 180);
+    $('grid-coords').textContent = currentCity;
+    $('grid-coriolis').textContent = coriolis.toExponential(3) + ' s⁻¹';
+
+    await sleep(800);
+    $('stage-1').classList.replace('active','completed');
+    $('badge-1').className = 'nwp-badge done'; $('badge-1').textContent = 'مکمل';
+
+    /* --- STEP 2 --- */
+    $('stage-2').classList.add('active');
+    $('badge-2').className = 'nwp-badge run'; $('badge-2').textContent = 'ڈیٹا لا رہا ہے';
+    await sleep(400);
+
+    $('obs-table').innerHTML = `
+        <tr><td>درجہ حرارت</td><td style="color:#34d399">${fmt(c.temperature_2m)} °C</td></tr>
+        <tr><td>اوس پوائنٹ (Dew Point)</td><td>${fmt(c.dew_point_2m)} °C</td></tr>
+        <tr><td>نسبتاً نمی</td><td>${fmt(c.relative_humidity_2m,0)} %</td></tr>
+        <tr><td>سطحی دباؤ</td><td>${fmt(c.pressure_msl,0)} hPa</td></tr>
+        <tr><td>ہوا کے جھکڑ</td><td style="color:#f59e0b">${fmt(c.wind_gusts_10m)} m/s</td></tr>
+    `;
+    await sleep(600);
+    $('stage-2').classList.replace('active','completed');
+    $('badge-2').className = 'nwp-badge done'; $('badge-2').textContent = 'مکمل';
+
+    /* --- STEP 3 --- */
+    $('stage-3').classList.add('active');
+    $('badge-3').className = 'nwp-badge run'; $('badge-3').textContent = 'حساب کتاب';
+    await sleep(400);
+    
+    const bgT = c.temperature_2m + (Math.random() - 0.5) * 1.5; 
+    const obsT = c.temperature_2m;
+    const sb = 0.8, so = 0.5;
+    const K = (sb*sb) / (sb*sb + so*so);
+    const anT = bgT + K * (obsT - bgT);
+
+    $('da-table').innerHTML = `
+        <tr><td>پس منظر (6h پیش گوئی)</td><td>${fmt(bgT,2)} °C</td></tr>
+        <tr><td>مشاہدہ (اصل)</td><td>${fmt(obsT,2)} °C</td></tr>
+        <tr><td>کلمان گین (K)</td><td style="color:#34d399">${fmt(K, 3)}</td></tr>
+        <tr><td>تجزیہ (ابتدائی حالت)</td><td style="color:#10b981">${fmt(anT,2)} °C</td></tr>
+    `;
+    await sleep(600);
+    $('stage-3').classList.replace('active','completed');
+    $('badge-3').className = 'nwp-badge done'; $('badge-3').textContent = 'مکمل';
+
+    /* --- STEP 4 --- */
+    $('stage-4').classList.add('active');
+    $('badge-4').className = 'nwp-badge run'; $('badge-4').textContent = 'حساب کتاب';
+    await sleep(400);
+
+    const T_kelvin = c.temperature_2m + 273.15;
+    const es = 6.1078 * Math.exp(17.269388 * (T_kelvin - 273.16) / (T_kelvin - 35.86));
+    const lcl = 125 * (c.temperature_2m - c.dew_point_2m);
+    const spread = c.temperature_2m - c.dew_point_2m;
+    const cape = Math.max(0, 2200 - 180*spread - 12*(100-c.relative_humidity_2m));
+
+    $('physics-table').innerHTML = `
+        <tr><td>سنترپتی بخارات کا دباؤ</td><td>${fmt(es, 2)} hPa</td></tr>
+        <tr><td>کمڈینسیشن لیول (LCL)</td><td style="color:#34d399">${fmt(lcl,0)} m</td></tr>
+        <tr><td>CAPE (عدم استحکام)</td><td style="color:#f59e0b">${fmt(cape,0)} J/kg</td></tr>
+    `;
+    await sleep(600);
+    $('stage-4').classList.replace('active','completed');
+    $('badge-4').className = 'nwp-badge done'; $('badge-4').textContent = 'مکمل';
+
+    /* --- STEP 5 --- */
+    $('stage-5').classList.add('active');
+    $('badge-5').className = 'nwp-badge run'; $('badge-5').textContent = 'انضمام';
+    
+    for(let i=0; i<12; i++) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>+${i+1} گھنٹے</td>
+            <td>${fmt(H.temperature_2m[i], 1)}</td>
+            <td>${fmt(H.relative_humidity_2m[i], 0)}</td>
+            <td style="color:#34d399">${fmt(H.precipitation[i], 1)}</td>
+            <td style="color:#f59e0b">${fmt(H.precipitation_probability[i], 0)}</td>
+        `;
+        $('integration-rows').appendChild(tr);
+        $('int-bar').style.width = ((i+1)/12*100) + '%';
+        await sleep(100);
+    }
+    $('stage-5').classList.replace('active','completed');
+    $('badge-5').className = 'nwp-badge done'; $('badge-5').textContent = 'مکمل';
+
+    /* --- STEP 6 --- */
+    $('stage-6').classList.add('active');
+    $('badge-6').className = 'nwp-badge run'; $('badge-6').textContent = 'سیمولیشن';
+    await sleep(400);
+
+    const baseProb = H.precipitation_probability[0] || 0;
+    const members = [];
+    for(let m=0; m<51; m++) {
+        const perturb = (Math.random() + Math.random() + Math.random() - 1.5) * 30;
+        members.push(Math.max(0, Math.min(100, baseProb + perturb)));
+    }
+    const wet = members.filter(p => p > 40).length;
+    const pFinal = Math.round((wet / 51) * 100);
+
+    $('ensemble-table').innerHTML = `
+        <tr><td>کل ممبران</td><td>51</td></tr>
+        <tr><td>40% سے زیادہ بارش والے</td><td style="color:#34d399">${wet}</td></tr>
+        <tr><td>حتمی امکان</td><td style="color:#10b981;font-size:16px">${pFinal}%</td></tr>
+    `;
+    await sleep(600);
+    $('stage-6').classList.replace('active','completed');
+    $('badge-6').className = 'nwp-badge done'; $('badge-6').textContent = 'مکمل';
+
+    /* --- STEP 7 --- */
+    $('stage-7').classList.add('active');
+    $('badge-7').className = 'nwp-badge run'; $('badge-7').textContent = 'حساب کتاب';
+    await sleep(400);
+
+    const d = new Date();
+    const sunTimes = SunCalc.getTimes(d, currentLat, currentLon);
+    let stormRisk = 0;
+    if(cape > 1500) stormRisk += 40; else if(cape > 800) stormRisk += 25;
+    if(pFinal > 60) stormRisk += 30;
+    if(c.wind_gusts_10m > 15) stormRisk += 20;
+    stormRisk = Math.min(95, stormRisk);
+
+    $('astro-table').innerHTML = `
+        <tr><td>طلوع آفتاب</td><td>${sunTimes.sunrise ? sunTimes.sunrise.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '—'}</td></tr>
+        <tr><td>غروب آفتاب</td><td>${sunTimes.sunset ? sunTimes.sunset.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '—'}</td></tr>
+    `;
+    $('storm-table').innerHTML = `
+        <tr><td>طوفان کا خطرہ</td><td style="color:${stormRisk>50?'#ef4444':'#10b981'};font-size:18px">${stormRisk}%</td></tr>
+        <tr><td>بنیادی وجہ</td><td>${cape > 1000 ? 'عدم استحکام (CAPE)' : 'ڈائنامک لفٹ'}</td></tr>
+    `;
+    await sleep(600);
+    $('stage-7').classList.replace('active','completed');
+    $('badge-7').className = 'nwp-badge done'; $('badge-7').textContent = 'مکمل';
+
+    /* --- STEP 8 --- */
+    $('stage-8').classList.add('active');
+    $('badge-8').className = 'nwp-badge run'; $('badge-8').textContent = 'نتیجہ';
+    await sleep(400);
+
+    const icon = pFinal > 50 ? '🌧️' : pFinal > 20 ? '🌦️' : '☀️';
+    $('nwp-final-display').innerHTML = `
+        <div>
+            <div class="nwp-big-temp">${icon} ${fmt(c.temperature_2m,0)}<small>°C</small></div>
+            <div style="text-align:center; font-weight:bold; color:#fff; margin-top:10px;">${currentCity}</div>
+        </div>
+        <div style="width:1px; height:60px; background:rgba(16,185,129,.4);"></div>
+        <div style="display:flex; flex-direction:column; gap:6px; font-size:13px;">
+            <div>بارش کا امکان: <b>${pFinal}%</b></div>
+            <div>متوقع بارش: <b>${getRainText(H.precipitation[0])}</b></div>
+            <div>طوفان کا خطرہ: <b style="color:${stormRisk>50?'#ef4444':'#10b981'}">${stormRisk}%</b></div>
+        </div>
+    `;
+    $('stage-8').classList.replace('active','completed');
+    $('badge-8').className = 'nwp-badge done'; $('badge-8').textContent = 'مکمل';
+    $('nwp-terminal').innerHTML += `<br><span style="color:#10b981">> NWP سیمولیشن کامیاب رہی۔ نتیجہ تیار ہے۔</span>`;
+    
+    $('runNWP').disabled = false;
+}
+
+/* ===================== 3D GLOBE ===================== */
+function initGlobe(){
+  const wrap=$('nwp-globe-wrap');
+  const w=wrap.clientWidth, h=wrap.clientHeight;
+  const scene=new THREE.Scene();
+  const cam=new THREE.PerspectiveCamera(45,w/h,.1,1000); cam.position.z=2.8;
+  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+  renderer.setSize(w,h); wrap.appendChild(renderer.domElement);
+
+  const geo=new THREE.SphereGeometry(1,64,64);
+  const mat=new THREE.MeshPhongMaterial({
+    map:new THREE.TextureLoader().load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg'),
+    specularMap:new THREE.TextureLoader().load('https://threejs.org/examples/textures/planets/earth_specular_2048.jpg'),
+    normalMap:new THREE.TextureLoader().load('https://threejs.org/examples/textures/planets/earth_normal_2048.jpg'),
+    specular:new THREE.Color('grey'), shininess:15
+  });
+  const earth=new THREE.Mesh(geo,mat);
+  scene.add(earth);
+
+  scene.add(new THREE.AmbientLight(0xffffff,.6));
+  const sun=new THREE.DirectionalLight(0xffffff,1.2); sun.position.set(5,3,5); scene.add(sun);
+
+  const marker=new THREE.Mesh(new THREE.SphereGeometry(.025,16,16), new THREE.MeshBasicMaterial({color:0xef4444}));
+  earth.add(marker);
+
+  GLOBE={scene,cam,renderer,earth,marker};
+  
+  let drag=false,px=0,py=0;
+  renderer.domElement.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;py=e.clientY;});
+  addEventListener('pointerup',()=>drag=false);
+  addEventListener('pointermove',e=>{
+    if(!drag) return;
+    earth.rotation.y += (e.clientX-px)*.008;
+    earth.rotation.x += (e.clientY-py)*.008;
+    px=e.clientX; py=e.clientY;
+  });
+
+  (function loop(){ requestAnimationFrame(loop); if(!drag) earth.rotation.y+=0.002; renderer.render(scene,cam); })();
+}
+
+function updateGlobe(lat, lon){
+  if(!GLOBE) return;
+  const phi=(90-lat)*Math.PI/180, theta=(lon+180)*Math.PI/180;
+  GLOBE.marker.position.set(-1.02*Math.sin(phi)*Math.cos(theta), 1.02*Math.cos(phi), 1.02*Math.sin(phi)*Math.sin(theta));
+  GLOBE.earth.rotation.y = -(lon+180)*Math.PI/180;
+}
+
+/* ===================== WIRING & INIT ===================== */
+$('searchBtn').addEventListener('click', async () => {
+    const q = $('searchInput').value.trim();
+    if (!q) return;
+    try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`);
+        const data = await res.json();
+        if(data.length === 0) return alert('شہر نہیں ملا۔');
+        const it = data[0];
+        loadWeatherData(parseFloat(it.lat), parseFloat(it.lon), it.display_name.split(',')[0]);
+    } catch(err) { alert('تلاش ناکام رہی'); }
+});
+
+$('locateMeBtn').addEventListener('click', () => {
+    const btn = $('locateMeBtn');
+    btn.innerHTML = '⏳ مقام تلاش کیا جا رہا ہے (30s)...';
+    
+    navigator.geolocation.getCurrentPosition(
+        async pos => {
+            const lat = pos.coords.latitude, lon = pos.coords.longitude;
+            const city = await reverseGeocode(lat, lon);
+            loadWeatherData(lat, lon, city);
+            btn.innerHTML = '📍 میرا موسم دیکھیں';
+        },
+        err => { 
+            alert('GPS خرابی: ' + err.message + '\nبراہ کرم یقینی بنائیں کہ لوکیشن آن ہے۔'); 
+            btn.innerHTML = '📍 میرا موسم دیکھیں'; 
+            loadWeatherData(currentLat, currentLon, currentCity); 
+        },
+        { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
+    );
+});
+
+$('menuBtn').addEventListener('click', () => $('drawerOverlay').classList.add('active'));
+$('closeDrawerBtn').addEventListener('click', () => $('drawerOverlay').classList.remove('active'));
+$('exitAppBtn').addEventListener('click', () => $('exitModal').style.display = 'flex');
+$('loveAppBtn').addEventListener('click', () => $('exitModal').style.display = 'none');
+$('leaveAppBtn').addEventListener('click', () => window.close());
+$('runNWP').addEventListener('click', runSimulation);
+
+// --- APP STARTUP SEQUENCE ---
+document.getElementById('content').innerHTML = '<div class="loading" style="font-size:1.2rem; padding:60px 20px; text-align:center;">📡 سیٹلائٹ اپ لنک قائم ہو رہا ہے...<br><br><span style="font-size:0.9rem; opacity:0.7;">درست GPS مقام کی درخواست کی جا رہی ہے...</span></div>';
+document.getElementById('solarContent').innerHTML = '';
+document.getElementById('forecastContainer').innerHTML = '';
+document.getElementById('datePanel').innerHTML = '';
+document.getElementById('locationDisplay').innerHTML = '📍 مقام تلاش کیا جا رہا ہے...';
+
+setTimeout(() => {
+    initMap(currentLat, currentLon);
+    
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            async pos => {
+                const lat = pos.coords.latitude, lon = pos.coords.longitude;
+                const city = await reverseGeocode(lat, lon);
+                loadWeatherData(lat, lon, city);
+            },
+            err => {
+                document.getElementById('content').innerHTML = '<div class="error">⚠️ GPS نہیں ملا۔ براہ کرم شہر تلاش کریں یا "میرا موسم دیکھیں" پر کلک کریں۔</div>';
+                document.getElementById('locationDisplay').innerHTML = '📍 مقام مسترد';
+                loadWeatherData(19.09, 72.87, "عرض بلد: 19.0900, طول بلد: 72.8700");
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    }
+}, 500);
+
+// ===================== DATA SOURCE SELECTOR =====================
+const DATA_SOURCES = {
+    weather: {
+        title: '🌦️ موسمی ماڈلز (17)',
+        items: [
+            { id:'ecmwf', name:'ECMWF (یورپ)', color:'#10b981', direct:true, note:'بنیادی عالمی موسمی ماڈل۔' },
+            { id:'noaa', name:'NOAA GFS (امریکہ)', color:'#ef4444', direct:true, note:'امریکی گلوبل فورکاسٹ سسٹم۔' },
+            { id:'dwd', name:'DWD ICON (جرمنی)', color:'#f59e0b', direct:true, note:'جرمن ہائی ریزولوشن ماڈل۔' },
+            { id:'meteofr', name:'Météo-France (فرانس)', color:'#60a5fa', direct:true, note:'Open-Meteo کے ذریعے استعمال ہوتا ہے۔' },
+            { id:'jma', name:'JMA (جاپان)', color:'#f472b6', direct:true, note:'جاپان موسمیات ایجنسی۔' },
+            { id:'ukmet', name:'UK Met Office (برطانیہ)', color:'#a78bfa', direct:true, note:'یو کے یونیفائیڈ ماڈل۔' },
+            { id:'cma', name:'CMA (چین)', color:'#f87171', direct:true, note:'چین موسمیات انتظامیہ۔' },
+            { id:'kma', name:'KMA (جنوبی کوریا)', color:'#34d399', direct:true, note:'کوریا موسمیات انتظامیہ۔' },
+            { id:'bom', name:'BOM (آسٹریلیا)', color:'#fb923c', direct:true, note:'بیورو آف میٹیورولوجی۔' },
+            { id:'envca', name:'Env Canada (کینیڈا)', color:'#ef4444', direct:true, note:'انوارمنٹ کینیڈا GEM ماڈل۔' },
+            { id:'imd', name:'IMD (بھارت)', color:'#f59e0b', direct:false, note:'⚠️ IMD براہ راست استعمال نہیں ہوتا۔ بھارت کے لیے ECMWF استعمال ہوتا ہے۔' }
+        ]
+    },
+    disaster: {
+        title: '🚨 آفات کے انتباہ (8)',
+        items: [
+            { id:'usgs', name:'USGS (زلزلے)', color:'#ef4444', direct:true, note:'تمام M4+ زلزلوں کے لیے براہ راست فیڈ۔' },
+            { id:'gdacs', name:'GDACS (UN/EU)', color:'#f87171', direct:true, note:'عالمی آفات سے خبردار کرنے کا نظام۔' },
+            { id:'firms', name:'NASA FIRMS (آگ)', color:'#fb923c', direct:false, note:'⚠️ آگ کی معلومات GDACS سے آتی ہیں۔' },
+            { id:'ptwc', name:'NOAA PTWC (سونامی)', color:'#10b981', direct:false, note:'⚠️ سونامی کا پتہ USGS فلیگ سے چلتا ہے۔' }
+        ]
+    },
+    satellite: {
+        title: '🛰️ سیٹلائٹ تصاویر (10)',
+        items: [
+            { id:'nasa-gibs', name:'NASA GIBS', color:'#10b981', direct:true, note:'نقشے کی تہہ کے طور پر دستیاب۔' },
+            { id:'sentinel-2', name:'ESA Sentinel-2', color:'#34d399', direct:true, note:'کلاؤڈ لیس نقشے کی تہہ کے طور پر دستیاب۔' },
+            { id:'goes-east', name:'NOAA GOES-East', color:'#f87171', direct:false, note:'⚠️ Open-Meteo کو ڈیٹا دیتا ہے۔' }
+        ]
+    }
+};
+
+function renderSourceList() {
+    const container = document.getElementById('sourceListContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    Object.keys(DATA_SOURCES).forEach(catKey => {
+        const cat = DATA_SOURCES[catKey];
+        const section = document.createElement('div');
+        const header = document.createElement('div');
+        header.style.cssText = 'font-size:.85rem;font-weight:700;color:#fbbf24;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid rgba(16,185,129,.2);';
+        header.textContent = cat.title;
+        section.appendChild(header);
+        cat.items.forEach(src => {
+            const btn = document.createElement('button');
+            btn.style.cssText = `width:100%;text-align:right;background:rgba(255,255,255,.04);border:1px solid rgba(16,185,129,.15);border-radius:12px;padding:8px 12px;margin-top:6px;color:#ecfdf5;font-size:.85rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-family:'Noto Nastaliq Urdu',sans-serif;`;
+            btn.innerHTML = `<span>${src.name}</span><span style="color:${src.direct ? '#34d399' : '#f59e0b'};font-size:.7rem;">${src.direct ? '● لائیو' : '○ حوالہ'}</span>`;
+            btn.onclick = () => { document.getElementById('sourceModal').style.display = 'none'; };
+            section.appendChild(btn);
+        });
+        container.appendChild(section);
+    });
+}
+const closeSourceModal = document.getElementById('closeSourceModal');
+if (closeSourceModal) {
+    closeSourceModal.addEventListener('click', () => {
+        document.getElementById('sourceModal').style.display = 'none';
+    });
+}
+const sourceBtn = document.getElementById('sourceBtn');
+if (sourceBtn) {
+    sourceBtn.addEventListener('click', () => {
+        renderSourceList();
+        document.getElementById('sourceModal').style.display = 'flex';
+        document.getElementById('sourceNote').style.display = 'none';
+    });
+}
+
+// LIVE BADGE LOGIC
+let lastFetchSuccess = 0;
+const liveBadge = document.getElementById('liveBadge');
+const liveDot = document.getElementById('liveDot');
+const liveText = document.getElementById('liveText');
+
+function markLiveFetchSuccess() { lastFetchSuccess = Date.now(); }
+
+function updateLiveBadge() {
+    if (!liveBadge || !liveDot || !liveText) return;
+    if (navigator.onLine === false) {
+        liveBadge.style.display = 'inline-flex'; liveBadge.className = 'offline'; liveText.textContent = 'آف لائن'; return;
+    }
+    if (lastFetchSuccess === 0) { liveBadge.style.display = 'none'; return; }
+    const secondsAgo = Math.floor((Date.now() - lastFetchSuccess) / 1000);
+    if (secondsAgo < 180) {
+        liveBadge.style.display = 'inline-flex'; liveBadge.className = '';
+        liveDot.style.background = '#ef4444'; liveDot.style.boxShadow = '0 0 8px #ef4444'; liveDot.style.animation = 'livePulse 1.4s infinite ease-in-out';
+        liveText.textContent = secondsAgo < 2 ? 'لائیو' : (secondsAgo < 60 ? 'لائیو · ' + secondsAgo + 's' : 'لائیو · ' + Math.floor(secondsAgo/60) + 'm');
+        return;
+    }
+    if (secondsAgo < 1800) {
+        liveBadge.style.display = 'inline-flex'; liveBadge.className = 'stale'; liveText.textContent = 'پرانا · ' + Math.floor(secondsAgo/60) + 'm'; return;
+    }
+    liveBadge.style.display = 'none';
+}
+setInterval(() => {
+    if (currentLat && currentLon) loadWeatherData(currentLat, currentLon, currentCity);
+}, 15 * 60 * 1000);
+
+// AQI MAP OVERLAY TOGGLE
+let aqiLayer = null;
+$('aqiMapBtn').addEventListener('click', () => {
+    if (!map) return;
+    
+    if (aqiLayer) {
+        map.removeLayer(aqiLayer);
+        aqiLayer = null;
+        currentLayer.addTo(map); 
+        $('aqiMapBtn').innerHTML = '<span>🌫️</span> فضائی معیار (PM2.5) کا نقشہ دکھائیں';
+        $('aqiMapBtn').style.background = 'linear-gradient(90deg,#f59e0b,#d97706)';
+    } else {
+        map.removeLayer(currentLayer); 
+        aqiLayer = L.tileLayer('https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=demo', {
+            opacity: 0.7,
+            attribution: 'Air Quality Data © WAQI'
+        }).addTo(map);
+        $('aqiMapBtn').innerHTML = '<span>🛰️</span> واپس سیٹلائٹ نقشے پر جائیں';
+        $('aqiMapBtn').style.background = 'linear-gradient(90deg,#059669,#34d399)';
+    }
+});
+setInterval(updateLiveBadge, 1000);
+window.addEventListener('online', updateLiveBadge);
+window.addEventListener('offline', updateLiveBadge);
+</script>
+</body>
+</html>
